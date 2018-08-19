@@ -1,63 +1,34 @@
-import collections
 from collections import defaultdict
-import matplotlib.pyplot as plt
 import networkx as nx
-import numpy as np
 
-# read graph
-G = nx.read_edgelist('./datasets/soc-sign-Slashdot090221.txt/data.s', nodetype=int, data=(('sign', int),))
-max_degree = G.number_of_nodes() - 1
+MIN_DEGREE_RANGE = 50
 
-# l1 = G.neighbors(0)
-# l2 = G.neighbors(7)
-# s2 = set(l2)
-
-# print [val for val in l1 if val in s2]
-# exit(0)
-
-def get_deg_window_sizes(mx):
+def get_node_cluster_by_degree_range(G):
 	"""
-	Returns(list): An array of sizes for each group using an
-	exponential function.
+	Returns(defaultdict): A dictionary of (lf, rt) : list which have their degree
+	in window represented by it's key[lf, rt].
 	"""
-	res = []
-	x = 0
-	base = 2
-	while base ** x < mx:
-		res.append(base ** x)
-		x += 1
-	return res
 
-def get_node_cluster_by_degree_range(G, window_size):
-	"""
-	Returns(defaultdict): A dictionary of lists which have their degree 
-	in window represented by it's key.
-	"""
-	def get_window(n):
-		start = 0
-		for i, x in enumerate(window_size):
-			if x <= 0:
-				raise Exception("size should always be +ve")
-			start += x - 1
-			if(n <= start):
-				return i
-			start += 1
-		raise Exception("Input exceeds maximum allowed value.")
-
-	node_cluster_by_degree_range = defaultdict(list)
+	deg_node = defaultdict(list)
 	for n, d in G.degree():
-		node_cluster_by_degree_range[get_window(d)].append(n)
-	return node_cluster_by_degree_range
+		deg_node[d].append(n)
 
-def get_window_range(window_sizes, initial = 0):
-	"""
-	Returns(list): A list of tuples (l, r) indicating a range, both inclusive.
-	"""
-	window_ranges = []
-	for x in window_sizes:
-		window_ranges.append((initial, initial + x - 1))
-		initial = initial + x
-	return window_ranges
+	count = 0
+	l_range = 0
+	node_list = list()
+	node_cluster_by_degree_range = defaultdict(list)
+	for deg in deg_node:
+		for n in deg_node[deg]:
+			node_list.append(n)
+		count += len(deg_node[deg])
+		if count > MIN_DEGREE_RANGE:
+			node_cluster_by_degree_range[(l_range, deg)] = node_list
+			node_list = list()
+			l_range = deg + 1
+			count = 0
+	if count:
+		node_cluster_by_degree_range[(l_range, G.number_of_nodes() - 1)] = node_list
+	return node_cluster_by_degree_range
 
 def get_adjacent_node_pairs_with_sign(G, node_cluster):
 	"""
@@ -67,6 +38,7 @@ def get_adjacent_node_pairs_with_sign(G, node_cluster):
 	# For each group/window get adjacent nodes.
 	for group in node_cluster:
 		nodes = node_cluster[group]
+		adjacent_node_pairs[group] = list()
 		for i in range(len(nodes) - 1):
 			j = i + 1
 			while(j < len(nodes)):
@@ -79,8 +51,6 @@ def get_adjacent_node_pairs_with_sign(G, node_cluster):
 					continue
 				adjacent_node_pairs[group].append((a, b, e['sign']))
 	return adjacent_node_pairs
-
-
 
 def get_properties_by_group(G, adjacent_node_pairs_with_sign):
 	"""
@@ -134,26 +104,40 @@ def get_properties_by_group(G, adjacent_node_pairs_with_sign):
 		prop_2 = float(balanced_triangles) / len(intersection) if len(intersection) > 0 else 0.
 		return (prop_1, prop_2)
 
-	properties_by_group = defaultdict(list)
-	for k in adjacent_node_pairs_with_sign:
-		for edge in adjacent_node_pairs_with_sign[k]:
-			G.remove_edge(*edge[:2])
-			try:
-				paths = nx.all_shortest_paths(G, edge[0], edge[1])			
-				(prop_1, prop_2) = get_properties_from_paths(G, paths)
-			except:
-				(prop_1, prop_2) = (0., 0.)
-			(prop_3, prop_4) = get_clustering_coeff(G, edge)
-			G.add_edge(*edge[:2], sign = edge[2])
-			properties_by_group[k].append((prop_1, prop_2, prop_3, prop_4))
-	return properties_by_group
+	with open("pos.txt", "w") as pf:
+		with open("neg.txt", "w") as nf:
+			properties_by_group = defaultdict(list)
+			for k in adjacent_node_pairs_with_sign:
+				properties_by_group[k] = list()
+				for edge in adjacent_node_pairs_with_sign[k]:
+					G.remove_edge(*edge[:2])
+					try:
+						paths = nx.all_shortest_paths(G, edge[0], edge[1])			
+						(prop_1, prop_2) = get_properties_from_paths(G, paths)
+					except:
+						(prop_1, prop_2) = (0., 0.)
+					(prop_3, prop_4) = get_clustering_coeff(G, edge)
+					G.add_edge(*edge[:2], sign = edge[2])
+					if edge[2] == 1:
+						f = pf
+					elif edge[2] == -1:
+						f = nf
+					f.write(str(prop_1) + '\t' + 
+							str(prop_2) + '\t' + 
+							str(prop_3) + '\t' + 
+							str(prop_4) + '\n')
+					properties_by_group[k].append((prop_1, prop_2, prop_3, prop_4))
+			return properties_by_group
 
 
-deg_window_size = get_deg_window_sizes(max_degree)
-window_range = get_window_range(deg_window_size)
-node_cluster_by_degree_range = get_node_cluster_by_degree_range(G, deg_window_size)
+# read graph
+G = nx.read_edgelist('./datasets/soc-sign-Slashdot090221.txt/data',
+                     nodetype=int, data=(('sign', int),))
+node_cluster_by_degree_range = get_node_cluster_by_degree_range(G)
 adjacent_node_pairs_with_sign = get_adjacent_node_pairs_with_sign(G, node_cluster_by_degree_range)
 properties_by_group = get_properties_by_group(G, adjacent_node_pairs_with_sign)
 
-print adjacent_node_pairs_with_sign
-print properties_by_group
+# print node_cluster_by_degree_range
+# print adjacent_node_pairs_with_sign
+# print properties_by_group
+
