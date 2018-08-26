@@ -5,22 +5,29 @@ import networkx as nx
 MIN_DEGREE_RANGE = 500
 INVALID_NO = 1000.
 
+
 def get_node_cluster_by_degree_range(G):
 	"""
 	Returns(defaultdict): A dictionary of (lf, rt) : list which have their degree
 	in window represented by it's key[lf, rt].
 	"""
-	last = -1; deg_dist = defaultdict(list)
+	last = -1
+	deg_dist = defaultdict(list)
 	for n, d in G.degree():
 		last = max(last, d)
 	ranges = [(0, 5), (6, 50), (51, 200), (201, 500), (501, 1000), (1001, last)]
-	for x in ranges: deg_dist[x] = list()
+	for x in ranges:
+		deg_dist[x] = list()
+
 	def get(deg, i=0):
-		while ranges[i][1] < deg: i += 1
+		while ranges[i][1] < deg:
+			i += 1
 		return i
-	for n, d in G.degree(): deg_dist[ranges[get(d)]].append(n)
+	for n, d in G.degree():
+		deg_dist[ranges[get(d)]].append(n)
 	# print deg_dist
 	return deg_dist
+
 
 def get_adjacent_node_pairs_with_sign(G, node_cluster):
 	"""
@@ -44,6 +51,7 @@ def get_adjacent_node_pairs_with_sign(G, node_cluster):
 				adjacent_node_pairs[group].append((a, b, e['sign']))
 	return adjacent_node_pairs
 
+
 def get_properties_by_group(G, adjacent_node_pairs_with_sign):
 	"""
 	Returns(defaultdict): Each key has list of tuples(edge, (p1, p2, p3, p4)) of 
@@ -57,10 +65,13 @@ def get_properties_by_group(G, adjacent_node_pairs_with_sign):
 		prop_2(random walk sum) = sum 1 / deg(nodes), for all nodes in the path.
 		If no path is found between them then it equals to INVALID_NO.
 		"""
-		prop_1 = 0.; prop_2 = 0.; count = 0
+		prop_1 = 0.
+		prop_2 = 0.
+		count = 0
 		for p in paths:
 			count += 1
-			p1 = 0; p2 = sum(1.0 / d for _, d in G.degree(p))
+			p1 = 0
+			p2 = sum(1.0 / d for _, d in G.degree(p))
 			for i in xrange(1, len(p)):
 				p1 += G.get_edge_data(p[i - 1], p[i])['sign']
 			prop_1 += float(p1) / len(p)
@@ -79,8 +90,9 @@ def get_properties_by_group(G, adjacent_node_pairs_with_sign):
 		list_2 = G.neighbors(edge[1])
 		set_2 = set(list_2)
 		intersection = [val for val in list_1 if val in set_2]
-		union = len(set_2.union(set(list_1)))
-		prop_1 = float(len(intersection)) / union if union > 0 else INVALID_NO
+		union = set_2.union(set(list_1))
+		union_len = len(union)
+		prop_1 = float(len(intersection)) / union_len if union_len > 0 else INVALID_NO
 
 		balanced_triangles = 0
 		for x in intersection:
@@ -90,33 +102,52 @@ def get_properties_by_group(G, adjacent_node_pairs_with_sign):
 				raise Exception("!(~.~)!")
 			sm = sum([edge[2], e1['sign'], e2['sign']])
 			balanced_triangles += (1 if sm == 3 or sm == -1 else 0)
-		
-		prop_2 = float(balanced_triangles) / len(intersection) if len(intersection) > 0 else INVALID_NO
-		return (prop_1, prop_2)
 
-	properties_by_group = defaultdict(list)	
+		prop_2 = float(balanced_triangles) / \
+                    len(intersection) if len(intersection) > 0 else INVALID_NO
+		pos_x = 0
+		neg_x = 0
+		for x in intersection:
+			e1 = G.get_edge_data(edge[0], x)['sign']
+			e2 = G.get_edge_data(edge[1], x)['sign']
+			if e1 == e2:
+				if e1 == 1:
+					pos_x += 1
+				elif e1 == -1:
+					neg_x += 1
+		prop_3 = float(pos_x * neg_x) / union_len if union_len > 0 else INVALID_NO
+		return (prop_1, prop_2, prop_3)
+
+	properties_by_group = defaultdict(list)
 	for k in adjacent_node_pairs_with_sign:
 		properties_by_group[k] = list()
 		for edge in adjacent_node_pairs_with_sign[k]:
 			G.remove_edge(*edge[:2])
 			try:
-				paths = nx.all_shortest_paths(G, edge[0], edge[1])			
+				paths = nx.all_shortest_paths(G, edge[0], edge[1])
 				(prop_1, prop_2) = get_properties_from_paths(G, paths)
 			except:
 				(prop_1, prop_2) = (0., 0.)
-			(prop_3, prop_4) = get_clustering_coeff(G, edge)
-			G.add_edge(*edge[:2], sign = edge[2])
+			(prop_3, prop_4, prop_5) = get_clustering_coeff(G, edge)
+			G.add_edge(*edge[:2], sign=edge[2])
 			properties_by_group[k].append(
-				(edge, (prop_1, prop_2, prop_3, prop_4))
+				(edge, (prop_1, prop_2, prop_3, prop_4, prop_5))
 			)
 	return properties_by_group
 
+
 # read graph
-G = nx.read_edgelist('./datasets/soc-sign-Slashdot090221.txt/data',
+print 1
+G = nx.read_edgelist('./datasets/soc-sign-Slashdot090221.txt/data.s',
                      nodetype=int, data=(('sign', int),))
+print 2
 node_cluster_by_degree_range = get_node_cluster_by_degree_range(G)
-adjacent_node_pairs_with_sign = get_adjacent_node_pairs_with_sign(G, node_cluster_by_degree_range)
+print 3
+adjacent_node_pairs_with_sign = get_adjacent_node_pairs_with_sign(
+	G, node_cluster_by_degree_range)
+print 4
 properties_by_group = get_properties_by_group(G, adjacent_node_pairs_with_sign)
+print 5
 
 # make directory if not exists.
 if not os.path.isdir("./out_%s" % (MIN_DEGREE_RANGE,)):
@@ -126,12 +157,15 @@ for g in properties_by_group:
 	with open("./out_%s/%s-%s_pos.txt" % (MIN_DEGREE_RANGE, g[0], g[1]), "w") as pf:
 		with open("./out_%s/%s-%s_neg.txt" % (MIN_DEGREE_RANGE, g[0], g[1]), "w") as nf:
 			for e_prop in properties_by_group[g]:
-				edge = e_prop[0]; prop = e_prop[1]
-				out = "%s\t%s\t%s\t%s\t%s\t%s\n" % (
-					str(edge[0]), str(edge[1]), str(prop[0]), str(prop[1]), str(prop[2]), str(prop[3])
+				edge = e_prop[0]
+				prop = e_prop[1]
+				out = "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (
+					str(edge[0]), str(edge[1]), str(prop[0]), str(prop[1]), 
+					str(prop[2]), str(prop[3]), str(prop[4])
 				)
 				# there is no edge with sign 0. only {-1, 1} are present.
 				(pf if edge[2] == 1 else nf).write(out)
+print 6
 
 exit(0)
 
@@ -139,4 +173,3 @@ exit(0)
 # print node_cluster_by_degree_range
 # print adjacent_node_pairs_with_sign
 # print properties_by_group
-
