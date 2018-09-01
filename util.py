@@ -4,7 +4,7 @@ from conf import GROUP_LIM
 from conf import INVALID_NO
 from conf import MIN_PATH_LEN
 
-def get(deg, ranges):
+def get_range_index(deg, ranges):
     i = 0
     while ranges[i][1] < deg:
         i += 1
@@ -18,7 +18,7 @@ def get_node_cluster_by_degree_range(G, ranges):
 	last = -1; deg_dist = defaultdict(list)
 	for n, d in G.degree(): last = max(last, d)
 	for x in ranges: deg_dist[x] = list()
-	for n, d in G.degree(): deg_dist[ranges[get(d, ranges)]].append(n)
+	for n, d in G.degree(): deg_dist[ranges[get_range_index(d, ranges)]].append(n)
 	return deg_dist
 
 
@@ -155,7 +155,7 @@ def get_inter_cluster_props(G, node_cluster, ranges):
 			prop = [node, G.degree(node)]
 			prop = prop + list([0] * len(ranges))
 			for x in G.neighbors(node):
-				prop[get(G.degree(x), ranges) + 2] += 1
+				prop[get_range_index(G.degree(x), ranges) + 2] += 1
 			res.append(prop)
 		inter_cluster_props.append(res)
 	return inter_cluster_props
