@@ -45,7 +45,7 @@ def get_adjacent_node_pairs_with_sign(G, node_cluster):
 	return adjacent_node_pairs
 
 
-def get_properties_by_group(G, adjacent_node_pairs_with_sign):
+def get_properties_by_group(G, adjacent_node_pairs_with_sign, ranges):
 	"""
 	Returns(defaultdict): Each key has list of tuples(edge, (p1, p2, p3, p4)) of 
 	properties corresponding to each edge in "adjacent_node_pairs_with_sign".
@@ -112,18 +112,17 @@ def get_properties_by_group(G, adjacent_node_pairs_with_sign):
 		prop_3 = float(pos_x - neg_x) / union_len if union_len > 0 else INVALID_NO
 		return (prop_1, prop_2, prop_3)
 
+	count = defaultdict(int)
 	properties_by_group = defaultdict(list)
 	for k in adjacent_node_pairs_with_sign:
 		properties_by_group[k] = list()
-		neg_e_count = 0
-		pos_e_count = 0
 		for edge in adjacent_node_pairs_with_sign[k]:
+			g1 = get_range_index(G.degree(edge[0]), ranges)
+			g2 = get_range_index(G.degree(edge[1]), ranges)
 			sign = edge[2]
-			if pos_e_count > GROUP_LIM and neg_e_count > GROUP_LIM:
-			    break
-			if sign == 1 and pos_e_count > GROUP_LIM or sign == -1 and neg_e_count > GROUP_LIM:
-			    continue
-
+			if g1 > g2: g1, g2 = g2, g1
+			if count[(g1, g2, sign)] > GROUP_LIM: continue
+	
 			G.remove_edge(*edge[:2])
 			try:
 				if nx.shortest_path_length(G, edge[0], edge[1]) > MIN_PATH_LEN:
@@ -137,10 +136,7 @@ def get_properties_by_group(G, adjacent_node_pairs_with_sign):
 			properties_by_group[k].append(
 				(edge, (prop_1, prop_2, prop_3, prop_4, prop_5))
 			)
-			if sign == 1:
-				pos_e_count += 1
-			else:
-				neg_e_count += 1
+			count[(g1, g2, sign)] += 1
 	return properties_by_group
 
 
@@ -159,3 +155,18 @@ def get_inter_cluster_props(G, node_cluster, ranges):
 			res.append(prop)
 		inter_cluster_props.append(res)
 	return inter_cluster_props
+
+
+def get_inter_group_adjacent_node_pairs_with_sign(G, ranges):
+	"""
+	Returns(defaultdict): A dict of list of tuples (n1, n2, sign).
+	"""
+	edges_with_sign = list()
+	for e in G.edges(data=True):
+		g1 = get_range_index(G.degree(e[0]), ranges); g2 = get_range_index(G.degree(e[1]), ranges)
+		if g1 == g2: continue
+		if g1 > g2: g1, g2 = g2, g1
+		edges_with_sign.append((e[0], e[1], e[2]['sign']))
+	res = defaultdict(list)
+	res[0] = edges_with_sign
+	return res
