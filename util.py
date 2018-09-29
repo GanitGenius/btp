@@ -47,7 +47,7 @@ def get_adjacent_node_pairs_with_sign(G, node_cluster):
 
 def get_properties_by_group(G, adjacent_node_pairs_with_sign, ranges):
 	"""
-	Returns(defaultdict): Each key has list of tuples(edge, (p1, p2, p3, p4)) of 
+	Returns(defaultdict): Each key has list of tuples(edge, (p1, p2, p3, p4, p5)) of 
 	properties corresponding to each edge in "adjacent_node_pairs_with_sign".
 	"""
 	def get_properties_from_paths(G, paths):

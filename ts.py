@@ -5,7 +5,7 @@ import util
 
 # read graph
 print 1
-G = nx.read_edgelist('./datasets/soc-sign-Slashdot090221.txt/data',
+G = nx.read_edgelist('./datasets/soc-sign-epinions.txt/data',
                      nodetype=int, data=(('sign', int),))
 last = -1
 for n, d in G.degree():
